@@ -2,7 +2,7 @@
  * ============================================================================
  * ĐỒ ÁN MÔN HỌC: HỆ THỐNG QUẢN LÝ GHI CHÚ VÀ THÔNG TIN RIÊNG TƯ
  * FILE: backend/server.js
- * MÔ TẢ: Máy chủ REST API - SPRINT 0 (Khởi tạo Server & Cấu trúc Dữ liệu)
+ * MÔ TẢ: Máy chủ REST API - SPRINT 1 (Bổ sung API Profile)
  * ============================================================================
  */
 
@@ -103,10 +103,34 @@ initSampleTopic('ca-nhan', [
   }
 ]);
 
-// Helper: Lấy đường dẫn file theo chủ đề
-const getTopicFilePath = (topic) => path.join(notesDir, `${topic}.json`);
+// ==========================================
+// BỔ SUNG API CHO SPRINT 1 (PROFILE)
+// ==========================================
 
+// API 1: Đọc thông tin Profile
+app.get('/api/profile', (req, res) => {
+  try {
+    const rawData = fs.readFileSync(profilePath, 'utf8');
+    const profile = JSON.parse(rawData);
+    res.json(profile);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi đọc file profile", error: error.message });
+  }
+});
 
+// API 2: Cập nhật Profile
+app.put('/api/profile', (req, res) => {
+  try {
+    const newProfile = req.body;
+    // Ghi đè dữ liệu mới vào file profile.json
+    fs.writeFileSync(profilePath, JSON.stringify(newProfile, null, 2), 'utf8');
+    res.json({ success: true, message: "Đã cập nhật Profile thành công", data: newProfile });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi ghi file profile", error: error.message });
+  }
+});
+
+// Trang chủ hướng dẫn API
 app.get('/', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
 
@@ -116,7 +140,7 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>NoteKeeper API - Sprint 0</title>
+      <title>NoteKeeper API - Sprint 1</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
         h2 { color: #2563eb; }
@@ -126,12 +150,12 @@ app.get('/', (req, res) => {
       </style>
     </head>
     <body>
-      <h2>NoteKeeper API - Sprint 0 (Base Server)</h2>
-      <p>Hệ thống máy chủ đã khởi tạo thành công các tệp dữ liệu JSON ban đầu.</p>
+      <h2>NoteKeeper API - Sprint 1 (Profile Active)</h2>
+      <p>Hệ thống máy chủ đã sẵn sàng kết nối với Frontend.</p>
 
       <h3>Cấu hình</h3>
       <ul>
-        <li><a href="${baseUrl}/api/profile">${baseUrl}/api/profile</a> - Cấu hình người dùng</li>
+        <li><a href="${baseUrl}/api/profile">${baseUrl}/api/profile</a> - Cấu hình người dùng (GET/PUT)</li>
       </ul>
 
       <h3>Ghi chú</h3>
@@ -153,7 +177,7 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`=======================================================`);
-  console.log(` [BACKEND - SPRINT 0] Máy chủ chạy tại: http://localhost:${PORT}`);
+  console.log(` [BACKEND - SPRINT 1] Máy chủ chạy tại: http://localhost:${PORT}`);
   console.log(` Dữ liệu JSON lưu tại: ${dataDir}`);
   console.log(`=======================================================`);
 });
