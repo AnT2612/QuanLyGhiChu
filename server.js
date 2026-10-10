@@ -2,7 +2,7 @@
  * ============================================================================
  * ĐỒ ÁN MÔN HỌC: HỆ THỐNG QUẢN LÝ GHI CHÚ VÀ THÔNG TIN RIÊNG TƯ
  * FILE: backend/server.js
- * MÔ TẢ: Máy chủ REST API - SPRINT 1 (Bổ sung API Profile)
+ * MÔ TẢ: Máy chủ REST API - SPRINT 2 (Tính năng Ghi chú thông thường / Public Notes)
  * ============================================================================
  */
 
@@ -29,6 +29,8 @@ const privateNotesPath = path.join(dataDir, 'private.json');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
+
+// Thẻ 2 (Sprint 2): Khởi tạo thư mục data/notes/
 if (!fs.existsSync(notesDir)) {
   fs.mkdirSync(notesDir, { recursive: true });
 }
@@ -103,8 +105,11 @@ initSampleTopic('ca-nhan', [
   }
 ]);
 
+// Helper: Lấy đường dẫn file JSON theo chủ đề
+const getTopicFilePath = (topic) => path.join(notesDir, `${topic}.json`);
+
 // ==========================================
-// BỔ SUNG API CHO SPRINT 1 (PROFILE)
+// API CHO SPRINT 1 (PROFILE)
 // ==========================================
 
 // API 1: Đọc thông tin Profile
@@ -122,11 +127,120 @@ app.get('/api/profile', (req, res) => {
 app.put('/api/profile', (req, res) => {
   try {
     const newProfile = req.body;
-    // Ghi đè dữ liệu mới vào file profile.json
     fs.writeFileSync(profilePath, JSON.stringify(newProfile, null, 2), 'utf8');
     res.json({ success: true, message: "Đã cập nhật Profile thành công", data: newProfile });
   } catch (error) {
     res.status(500).json({ message: "Lỗi ghi file profile", error: error.message });
+  }
+});
+
+// ==========================================
+// BỔ SUNG API CHO SPRINT 2 (PUBLIC NOTES)
+// ==========================================
+
+/**
+ * THẺ 2 (BE): API GET /api/notes/:topic
+ * MÔ TẢ: Lấy danh sách ghi chú theo chủ đề
+ */
+app.get('/api/notes/:topic', (req, res) => {
+  const filePath = getTopicFilePath(req.params.topic);
+  try {
+    // Nếu file chưa tồn tại -> Trả về mảng rỗng []
+    if (!fs.existsSync(filePath)) {
+      return res.json([]);
+    }
+    const data = fs.readFileSync(filePath, 'utf8');
+    res.json(JSON.parse(data));
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi đọc danh sách ghi chú", error: error.message });
+  }
+});
+
+/**
+ * THẺ 2 (BE): API POST /api/notes/:topic
+ * MÔ TẢ: Thêm mới ghi chú vào chủ đề
+ */
+app.post('/api/notes/:topic', (req, res) => {
+  const filePath = getTopicFilePath(req.params.topic);
+  try {
+    let notes = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : [];
+
+    // Thẻ 1 & 2: Tạo object ghi chú mới
+    const newNote = {
+      id: Date.now().toString(), // Sinh id ngẫu nhiên bằng chuỗi thời gian
+      title: req.body.title ? req.body.title.trim() : "Không tiêu đề",
+      content: req.body.content ? req.body.content.trim() : "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Đẩy ghi chú mới vào đầu mảng
+    notes.unshift(newNote);
+
+    // Lưu đè lại vào file JSON
+    fs.writeFileSync(filePath, JSON.stringify(notes, null, 2), 'utf8');
+    res.status(201).json({ success: true, message: "Thêm ghi chú thành công", note: newNote });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi thêm ghi chú mới", error: error.message });
+  }
+});
+
+/**
+ * THẺ 3 (BE): API PUT /api/notes/:topic/:id
+ * MÔ TẢ: Sửa ghi chú theo ID
+ */
+app.put('/api/notes/:topic/:id', (req, res) => {
+  const filePath = getTopicFilePath(req.params.topic);
+  const { id } = req.params;
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "Không tìm thấy chủ đề" });
+    }
+
+    let notes = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const index = notes.findIndex(n => n.id === id);
+
+    if (index !== -1) {
+      // Cập nhật nội dung & thời gian sửa đổi (updatedAt)
+      notes[index].title = req.body.title !== undefined ? req.body.title.trim() : notes[index].title;
+      notes[index].content = req.body.content !== undefined ? req.body.content.trim() : notes[index].content;
+      notes[index].updatedAt = new Date().toISOString();
+
+      // Lưu lại file
+      fs.writeFileSync(filePath, JSON.stringify(notes, null, 2), 'utf8');
+      return res.json({ success: true, message: "Đã sửa ghi chú thành công", note: notes[index] });
+    }
+
+    res.status(404).json({ message: "Không tìm thấy ghi chú cần sửa" });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi cập nhật ghi chú", error: error.message });
+  }
+});
+
+/**
+ * THẺ 3 (BE): API DELETE /api/notes/:topic/:id
+ * MÔ TẢ: Xóa ghi chú theo ID bằng filter()
+ */
+app.delete('/api/notes/:topic/:id', (req, res) => {
+  const filePath = getTopicFilePath(req.params.topic);
+  const { id } = req.params;
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "Không tìm thấy chủ đề" });
+    }
+
+    let notes = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+    // Lọc bỏ phần tử có id trùng khớp
+    const filteredNotes = notes.filter(n => n.id !== id);
+
+    // Lưu mảng mới lại vào file
+    fs.writeFileSync(filePath, JSON.stringify(filteredNotes, null, 2), 'utf8');
+    res.json({ success: true, message: "Đã xóa ghi chú thành công" });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi xóa ghi chú", error: error.message });
   }
 });
 
@@ -140,7 +254,7 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>NoteKeeper API - Sprint 1</title>
+      <title>NoteKeeper API - Sprint 2</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
         h2 { color: #2563eb; }
@@ -150,22 +264,23 @@ app.get('/', (req, res) => {
       </style>
     </head>
     <body>
-      <h2>NoteKeeper API - Sprint 1 (Profile Active)</h2>
-      <p>Hệ thống máy chủ đã sẵn sàng kết nối với Frontend.</p>
+      <h2>NoteKeeper API - Sprint 2 (Public Notes Active)</h2>
+      <p>Hệ thống API đã hoàn thiện đầy đủ các chức năng cho Ghi chú thông thường.</p>
 
-      <h3>Cấu hình</h3>
+      <h3>Cấu hình (Sprint 1)</h3>
       <ul>
         <li><a href="${baseUrl}/api/profile">${baseUrl}/api/profile</a> - Cấu hình người dùng (GET/PUT)</li>
       </ul>
 
-      <h3>Ghi chú</h3>
+      <h3>Ghi chú công khai (Sprint 2)</h3>
       <ul>
-        <li><a href="${baseUrl}/api/notes/hoc-tap">${baseUrl}/api/notes/hoc-tap</a> - Ghi chú học tập</li>
-        <li><a href="${baseUrl}/api/notes/cong-viec">${baseUrl}/api/notes/cong-viec</a> - Ghi chú công việc</li>
-        <li><a href="${baseUrl}/api/notes/ca-nhan">${baseUrl}/api/notes/ca-nhan</a> - Ghi chú cá nhân</li>
+        <li><a href="${baseUrl}/api/notes/hoc-tap">${baseUrl}/api/notes/hoc-tap</a> - Ghi chú học tập (GET/POST)</li>
+        <li><a href="${baseUrl}/api/notes/cong-viec">${baseUrl}/api/notes/cong-viec</a> - Ghi chú công việc (GET/POST)</li>
+        <li><a href="${baseUrl}/api/notes/ca-nhan">${baseUrl}/api/notes/ca-nhan</a> - Ghi chú cá nhân (GET/POST)</li>
+        <li><code>PUT / DELETE</code> <code>${baseUrl}/api/notes/:topic/:id</code> - Cập nhật / Xóa ghi chú</li>
       </ul>
 
-      <h3>Ghi chú riêng tư</h3>
+      <h3>Ghi chú riêng tư (Sprint 3)</h3>
       <ul>
         <li><a href="${baseUrl}/api/private/notes">${baseUrl}/api/private/notes</a> - Danh sách ghi chú riêng tư</li>
         <li><a href="${baseUrl}/api/private/auth">${baseUrl}/api/private/auth</a> - Đường dẫn xác thực mật khẩu</li>
@@ -177,7 +292,7 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`=======================================================`);
-  console.log(` [BACKEND - SPRINT 1] Máy chủ chạy tại: http://localhost:${PORT}`);
+  console.log(` [BACKEND - SPRINT 2] Máy chủ chạy tại: http://localhost:${PORT}`);
   console.log(` Dữ liệu JSON lưu tại: ${dataDir}`);
   console.log(`=======================================================`);
 });
